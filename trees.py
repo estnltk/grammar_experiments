@@ -128,9 +128,6 @@ class Rule:
         return str(self)
 
 
-
-
-
 def graph_from_document(rows: Dict[str, List[Tuple[int, int]]]) -> nx.DiGraph:
     res = get_dense_matrix(rows)
     items = get_elementary_nodes(rows)
@@ -141,9 +138,11 @@ def graph_from_document(rows: Dict[str, List[Tuple[int, int]]]) -> nx.DiGraph:
     graph.add_edges_from(edges)
 
     create_entry_and_exit_nodes(graph, items)
-    remove_shortcuts(graph)
+    #remove_shortcuts(graph)
+    graph = nx.transitive_reduction(graph)
     add_blanks(graph)
-    remove_shortcuts(graph)
+    #remove_shortcuts(graph)
+    graph = nx.transitive_reduction(graph)
     return graph
 
 
@@ -227,6 +226,9 @@ def get_dense_mapping(rows):
 
 
 def add_blanks(graph: nx.DiGraph) -> None:
+    nodes_to_add = []
+    edges_to_add = []
+    edges_to_remove = []
     for node in graph.nodes():
         if node[-1] != '_' and node != START:
             (s1, e1), name = node
@@ -234,9 +236,16 @@ def add_blanks(graph: nx.DiGraph) -> None:
                 (s2, e2), _ = succ
                 if s2 - e1 > 1 and succ != END:
                     nnode = Node((e1, s2), "_")
-                    graph.add_node(nnode)
-                    graph.add_edges_from([(node, nnode), (nnode, succ)])
-                    graph.remove_edge(node, succ)
+                    nodes_to_add.append(nnode)
+                    edges_to_add.extend([(node, nnode), (nnode, succ)])
+                    edges_to_remove.append((node, succ))
+                    #graph.add_node(nnode)
+                    #graph.add_edges_from([(node, nnode), (nnode, succ)])
+                    #graph.remove_edge(node, succ)
+    graph.add_nodes_from(nodes_to_add)
+    graph.add_edges_from(edges_to_add)
+    graph.remove_edges_from(edges_to_remove)
+
 
 
 def remove_shortcuts(graph: nx.DiGraph) -> None:
@@ -244,8 +253,7 @@ def remove_shortcuts(graph: nx.DiGraph) -> None:
     The aim is to remove edges from the graph without affecting the reachability matrix.
     Transitive reduction of a DAG
     '''
-
-
+    # ei ole kasutusel. mõne graafi korral viskab errori
     nodelist = graph.nodes()
     adjacency_matrix = nx.to_numpy_matrix(graph, nodelist=nodelist) == 1
     reachability_matrix = nx.floyd_warshall_numpy(graph, nodelist=nodelist) == 1
@@ -282,8 +290,6 @@ def remove_shortcuts(graph: nx.DiGraph) -> None:
 #         else:
 #             stack.append(i)
 
-
-# In[217]:
 
 def get_valid_paths(graph: nx.DiGraph, rule:Rule):
     new_graph = graph.copy()
@@ -339,13 +345,12 @@ def get_nonterminal_nodes(graph: nx.DiGraph, grammar: 'Grammar'):
 
 
 def choose_parse_tree(nodes: Dict[Node, List[Tuple[Rule, Node]]], grammar:Grammar) -> nx.DiGraph:
-
     if not len([i for i in nodes.keys() if i.name == grammar.start_symbol])  >= 1:
         raise AssertionError('Parse failed, change grammar.')
 
     #we'll choose the starting symbol with the most cover
     #this is negotiable
-    print([i for i in nodes.keys() if i.name == grammar.start_symbol])
+    #print([i for i in nodes.keys() if i.name == grammar.start_symbol])
     stack = [
         max((i for i in nodes.keys() if i.name == grammar.start_symbol), key=lambda x:x.weight)
              ]
